@@ -1,0 +1,80 @@
+services:
+  # Frontend React application
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+  # Backend FastAPI service
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      - rabbitmq
+      - minio
+    volumes:
+      - ./backend:/app
+      - ./storage/uploads:/app/storage/uploads
+      - ./storage/output:/app/storage/output
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=guest
+      - RABBITMQ_PASSWORD=guest
+      - MINIO_HOST=minio
+      - MINIO_PORT=9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - STORAGE_TYPE=local # Change to 'minio' to use MinIO instead of local storage
+
+  # Worker service for video transcoding
+  worker:
+    build: ./worker
+    depends_on:
+      - rabbitmq
+      - minio
+    volumes:
+      - ./storage/uploads:/app/storage/uploads
+      - ./storage/output:/app/storage/output
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=guest
+      - RABBITMQ_PASSWORD=guest
+      - MINIO_HOST=minio
+      - MINIO_PORT=9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - STORAGE_TYPE=local # Change to 'minio' to use MinIO instead of local storage
+
+  # RabbitMQ message broker
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"  # AMQP port
+      - "15672:15672"  # Management interface port
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+  # MinIO for S3-compatible object storage (optional)
+  minio:
+    image: minio/minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    command: server /data --console-address ":9001"
+
+volumes:
+  rabbitmq_data:
+  minio_data:
