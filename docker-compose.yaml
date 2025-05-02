@@ -1,5 +1,6 @@
+version: '3.8'
+
 services:
-  # Frontend React application
   frontend:
     build: ./frontend
     ports:
@@ -10,59 +11,57 @@ services:
       - ./frontend:/app
       - /app/node_modules
 
-  # Backend FastAPI service
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
-    depends_on:
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - MINIO_HOST=minio
+      - DB_HOST=postgres
+      - DB_USER=postgres
+      - DB_PASSWORD=transcoder123
+      - DB_NAME=videotranscoder
+      - DATABASE_URL=postgresql://postgres:transcoder123@postgres:5432/videotranscoder
       - rabbitmq
       - minio
+      - postgres
     volumes:
       - ./backend:/app
-      - ./storage/uploads:/app/storage/uploads
-      - ./storage/output:/app/storage/output
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile
     environment:
       - RABBITMQ_HOST=rabbitmq
-      - RABBITMQ_PORT=5672
-      - RABBITMQ_USER=guest
-      - RABBITMQ_PASSWORD=guest
       - MINIO_HOST=minio
-      - MINIO_PORT=9000
-      - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin
-      - STORAGE_TYPE=local # Change to 'minio' to use MinIO instead of local storage
-
-  # Worker service for video transcoding
-  worker:
-    build: ./worker
+      - BACKEND_URL=http://backend:8000
     depends_on:
       - rabbitmq
       - minio
+      - backend
     volumes:
-      - ./storage/uploads:/app/storage/uploads
-      - ./storage/output:/app/storage/output
-    environment:
-      - RABBITMQ_HOST=rabbitmq
-      - RABBITMQ_PORT=5672
-      - RABBITMQ_USER=guest
-      - RABBITMQ_PASSWORD=guest
-      - MINIO_HOST=minio
-      - MINIO_PORT=9000
-      - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin
-      - STORAGE_TYPE=local # Change to 'minio' to use MinIO instead of local storage
+      - ./worker:/app
+    restart: unless-stopped
+    deploy:
+      replicas: 1  # Scale the worker horizontally if needed
 
-  # RabbitMQ message broker
   rabbitmq:
     image: rabbitmq:3-management
     ports:
-      - "5672:5672"  # AMQP port
-      - "15672:15672"  # Management interface port
+      - "5672:5672"
+      - "15672:15672"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    restart: unless-stopped
 
-  # MinIO for S3-compatible object storage (optional)
   minio:
     image: minio/minio
     ports:
@@ -74,7 +73,32 @@ services:
       - MINIO_ROOT_USER=minioadmin
       - MINIO_ROOT_PASSWORD=minioadmin
     command: server /data --console-address ":9001"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9001/minio/health/live"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 10s
+
+  postgres:
+    image: postgres:14
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data1:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=transcoder123
+      - POSTGRES_DB=videotranscoder
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "videotranscoder"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 10s
 
 volumes:
   rabbitmq_data:
   minio_data:
+  postgres_data1:

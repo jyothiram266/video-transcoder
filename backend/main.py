@@ -2,14 +2,22 @@
 import os
 import json
 import uuid
-import shutil
 from typing import List
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Depends, BackgroundTasks
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import pika
 from minio import Minio
 from minio.error import S3Error
+import tempfile
+from sqlalchemy.orm import Session
+
+# Import database and models
+from database import engine, get_db, Base
+import models  # Import all models before creating tables
+
+# Create database tables on startup
+Base.metadata.create_all(bind=engine)
 
 # Initialize FastAPI app
 app = FastAPI(title="Video Transcoding API")
@@ -32,36 +40,27 @@ MINIO_HOST = os.environ.get("MINIO_HOST", "minio")
 MINIO_PORT = int(os.environ.get("MINIO_PORT", 9000))
 MINIO_ACCESS_KEY = os.environ.get("MINIO_ACCESS_KEY", "minioadmin")
 MINIO_SECRET_KEY = os.environ.get("MINIO_SECRET_KEY", "minioadmin")
-STORAGE_TYPE = os.environ.get("STORAGE_TYPE", "local")  # 'local' or 'minio'
 
-# Define storage paths
-UPLOAD_DIR = "/app/storage/uploads"
-OUTPUT_DIR = "/app/storage/output"
+# Define temporary directory for handling downloads
+TEMP_DIR = "/tmp/video-api"
+os.makedirs(TEMP_DIR, exist_ok=True)
 
-# Ensure directories exist
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+# Initialize MinIO client
+minio_client = Minio(
+    f"{MINIO_HOST}:{MINIO_PORT}",
+    access_key=MINIO_ACCESS_KEY,
+    secret_key=MINIO_SECRET_KEY,
+    secure=False
+)
 
-# In-memory job storage (in production, use a database)
-jobs = {}
-
-# Initialize MinIO client if needed
-minio_client = None
-if STORAGE_TYPE == "minio":
-    minio_client = Minio(
-        f"{MINIO_HOST}:{MINIO_PORT}",
-        access_key=MINIO_ACCESS_KEY,
-        secret_key=MINIO_SECRET_KEY,
-        secure=False
-    )
-    
-    # Create buckets if they don't exist
-    for bucket in ["uploads", "transcoded"]:
-        try:
+# Create buckets if they don't exist
+def setup_minio():
+    try:
+        for bucket in ["uploads", "transcoded"]:
             if not minio_client.bucket_exists(bucket):
                 minio_client.make_bucket(bucket)
-        except S3Error as err:
-            print(f"Error creating MinIO bucket: {err}")
+    except S3Error as err:
+        print(f"Error creating MinIO bucket: {err}")
 
 # Connect to RabbitMQ
 def get_rabbitmq_connection():
@@ -83,16 +82,27 @@ def setup_rabbitmq():
     except Exception as e:
         print(f"Failed to setup RabbitMQ: {e}")
 
+# Clean up temporary files
+def cleanup_temp_file(file_path: str):
+    try:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+    except Exception as e:
+        print(f"Error cleaning up file {file_path}: {e}")
+
 # Call setup once at startup
 @app.on_event("startup")
 async def startup_event():
+    setup_minio()
     setup_rabbitmq()
 
 @app.post("/upload")
 async def upload_video(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     format: str = Form(...),
-    resolution: str = Form(...)
+    resolution: str = Form(...),
+    db: Session = Depends(get_db)
 ):
     # Validate file
     if not file.filename.lower().endswith(('.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv')):
@@ -114,35 +124,41 @@ async def upload_video(
         original_filename = file.filename
         filename_parts = os.path.splitext(original_filename)
         file_extension = filename_parts[1]
+        object_name = f"{job_id}{file_extension}"
         
-        # Define paths
-        upload_path = os.path.join(UPLOAD_DIR, f"{job_id}{file_extension}")
-        
-        # Save file locally
-        with open(upload_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        # Create a temporary file to store the upload
+        temp_file_path = os.path.join(TEMP_DIR, object_name)
+        with open(temp_file_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
             
-        # If using MinIO, upload to it as well
-        if STORAGE_TYPE == "minio" and minio_client:
-            minio_client.fput_object(
-                "uploads", 
-                f"{job_id}{file_extension}", 
-                upload_path
-            )
+        # Get file size
+        file_size = os.path.getsize(temp_file_path)
+            
+        # Upload to MinIO
+        minio_client.fput_object(
+            "uploads", 
+            object_name, 
+            temp_file_path
+        )
         
-        # Create job metadata
-        job_info = {
-            "job_id": job_id,
-            "filename": original_filename,
-            "format": format,
-            "resolution": resolution,
-            "input_path": upload_path,
-            "status": "queued",
-            "storage_type": STORAGE_TYPE
-        }
+        # Create job metadata and save to database
+        new_job = models.Job(
+            job_id=job_id,
+            filename=original_filename,
+            format=format,
+            resolution=resolution,
+            object_name=object_name,
+            status="queued",
+            file_size=file_size
+        )
         
-        # Save job metadata
-        jobs[job_id] = job_info
+        db.add(new_job)
+        db.commit()
+        db.refresh(new_job)
+        
+        # Schedule cleanup of the temporary file
+        background_tasks.add_task(cleanup_temp_file, temp_file_path)
         
         # Queue the job in RabbitMQ
         connection = get_rabbitmq_connection()
@@ -151,7 +167,7 @@ async def upload_video(
         channel.basic_publish(
             exchange='',
             routing_key='video_processing',
-            body=json.dumps(job_info),
+            body=json.dumps(new_job.to_dict()),
             properties=pika.BasicProperties(
                 delivery_mode=2,  # make message persistent
             )
@@ -164,57 +180,81 @@ async def upload_video(
         raise HTTPException(status_code=500, detail=f"Failed to process upload: {str(e)}")
 
 @app.get("/jobs")
-async def get_jobs():
-    return list(jobs.values())
+async def get_jobs(db: Session = Depends(get_db)):
+    jobs = db.query(models.Job).all()
+    return [job.to_dict() for job in jobs]
 
 @app.get("/job/{job_id}")
-async def get_job(job_id: str):
-    if job_id not in jobs:
+async def get_job(job_id: str, db: Session = Depends(get_db)):
+    job = db.query(models.Job).get(job_id)
+    if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    return jobs[job_id]
+    return job.to_dict()
 
 @app.get("/download/{job_id}")
-async def download_video(job_id: str):
-    if job_id not in jobs:
+async def download_video(job_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    job = db.query(models.Job).get(job_id)
+    if not job:
         raise HTTPException(status_code=404, detail="Job not found")
         
-    job = jobs[job_id]
-    
-    if job["status"] != "completed":
+    if job.status != "completed":
         raise HTTPException(status_code=400, detail="Video processing not completed yet")
     
-    output_filename = f"{job_id}.{job['format']}"
-    output_path = os.path.join(OUTPUT_DIR, output_filename)
+    output_filename = f"{job_id}.{job.format}"
     
-    # If using MinIO, download the file first
-    if STORAGE_TYPE == "minio" and minio_client:
-        try:
-            minio_client.fget_object(
-                "transcoded", 
-                output_filename, 
-                output_path
-            )
-        except S3Error as err:
-            raise HTTPException(status_code=500, detail=f"Failed to retrieve file from storage: {str(err)}")
+    # Create a temporary file to serve the download
+    temp_output_path = os.path.join(TEMP_DIR, output_filename)
     
-    # Check if file exists locally
-    if not os.path.exists(output_path):
-        raise HTTPException(status_code=404, detail="Transcoded file not found")
+    try:
+        # Download the file from MinIO
+        minio_client.fget_object(
+            "transcoded", 
+            output_filename, 
+            temp_output_path
+        )
+    except S3Error as err:
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve file from storage: {str(err)}")
     
     # Set a filename that's readable to the user
-    display_filename = f"{os.path.splitext(job['filename'])[0]}_{job['resolution']}.{job['format']}"
+    display_filename = f"{os.path.splitext(job.filename)[0]}_{job.resolution}.{job.format}"
+    
+    # Schedule cleanup of the temporary file
+    background_tasks.add_task(cleanup_temp_file, temp_output_path)
     
     return FileResponse(
-        path=output_path,
+        path=temp_output_path,
         filename=display_filename,
-        media_type=f"video/{job['format']}" if job['format'] != 'gif' else "image/gif"
+        media_type=f"video/{job.format}" if job.format != 'gif' else "image/gif"
     )
 
 # Endpoint to update job status (called by the worker)
 @app.post("/job/{job_id}/update")
-async def update_job(job_id: str, status: str = Form(...)):
-    if job_id not in jobs:
+async def update_job(
+    job_id: str, 
+    status: str = Form(...), 
+    progress: int = Form(None), 
+    duration: int = Form(None), 
+    error_message: str = Form(None),
+    db: Session = Depends(get_db)
+):
+    job = db.query(models.Job).get(job_id)
+    if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    jobs[job_id]["status"] = status
+    # Update job fields
+    job.status = status
+    
+    if progress is not None:
+        job.progress = progress
+        
+    if duration is not None:
+        job.duration = duration
+        
+    if error_message is not None:
+        job.error_message = error_message
+    
+    # Save changes to database
+    db.commit()
+    db.refresh(job)
+    
     return {"job_id": job_id, "status": status}

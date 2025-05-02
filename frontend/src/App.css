@@ -1,4 +1,4 @@
-/* frontend/src/App.css */
+/* Enhanced frontend/src/App.css */
 :root {
   /* Modern color palette - Light Mode */
   --primary: #3b82f6;
@@ -73,6 +73,7 @@ body {
   flex-direction: column;
 }
 
+/* Header styling with added logo */
 .App-header {
   display: flex;
   align-items: center;
@@ -81,6 +82,26 @@ body {
   padding-bottom: 1.5rem;
   border-bottom: 1px solid var(--border);
   position: relative;
+}
+
+/* Logo styling */
+.logo-icon {
+  display: inline-block;
+  margin-right: 0.75rem;
+  font-size: 1.75rem;
+  animation: pulse 3s infinite;
+}
+
+/* Version badge */
+.version-badge {
+  font-size: 0.75rem;
+  font-weight: normal;
+  background-color: var(--primary-bg);
+  color: var(--primary);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  margin-left: 0.75rem;
+  vertical-align: middle;
 }
 
 /* Theme toggle button */
@@ -96,7 +117,7 @@ body {
   font-size: 1.25rem;
   cursor: pointer;
   color: var(--text);
-  transition: background-color var(--transition), transform var(--transition);
+  transition: all var(--transition);
   position: absolute;
   right: 0;
   top: 0;
@@ -104,7 +125,8 @@ body {
 
 .theme-toggle:hover {
   background-color: var(--primary-bg);
-  transform: translateY(0);
+  transform: rotate(360deg);
+  transition: all 0.5s ease-in-out;
 }
 
 .theme-toggle:focus {
@@ -130,6 +152,9 @@ h1 {
   text-align: center;
   letter-spacing: -0.025em;
   margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 h2 {
@@ -164,7 +189,7 @@ main {
   }
 }
 
-/* Card styles */
+/* Enhanced frontend/src/App.css - continued */
 section {
   background-color: var(--card-bg);
   border-radius: var(--radius-lg);
@@ -178,9 +203,21 @@ section:hover {
   box-shadow: var(--shadow-lg);
 }
 
-/* Form styles */
+/* Form styles with improvements */
 .form-group {
   margin-bottom: 1.5rem;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .form-row {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 label {
@@ -212,24 +249,37 @@ input[type="file"]:focus {
   box-shadow: var(--focus-ring);
 }
 
-/* Modern file input styling */
+/* Modern file input styling with drag and drop enhancements */
 .file-input-container {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px dashed var(--border);
+  border: 2px dashed var(--border);
   border-radius: var(--radius);
   padding: 2rem 1rem;
   background-color: var(--primary-bg);
-  transition: border-color var(--transition), background-color var(--transition);
+  transition: all var(--transition);
   cursor: pointer;
   overflow: hidden;
+  min-height: 200px;
 }
 
 .file-input-container:hover {
   border-color: var(--primary);
   background-color: rgba(59, 130, 246, 0.12);
+}
+
+.file-input-container.dragging {
+  border-color: var(--primary);
+  background-color: rgba(59, 130, 246, 0.2);
+  box-shadow: var(--shadow);
+  transform: scale(1.02);
+}
+
+.file-input-container.has-video {
+  border-style: solid;
+  border-color: var(--primary);
 }
 
 .file-input-container input[type="file"] {
@@ -251,19 +301,72 @@ input[type="file"]:focus {
 }
 
 .file-icon {
-  width: 3rem;
-  height: 3rem;
+  width: 4rem;
+  height: 4rem;
   border-radius: 50%;
   background-color: rgba(59, 130, 246, 0.2);
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--primary);
+  font-size: 2rem;
+  transition: all var(--transition);
+}
+
+.pulse-animation {
+  animation: pulse-border 1.5s infinite;
+}
+
+@keyframes pulse-border {
+  0% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+  }
+}
+
+/* Video preview */
+.video-preview-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.video-preview {
+  width: 100%;
+  max-height: 200px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
 }
 
 .file-info {
-  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  position: relative;
+}
+
+.drop-text {
+  font-weight: 500;
+  color: var(--primary);
+}
+
+.or-divider {
+  color: var(--text-light);
+  font-size: 0.8rem;
+  margin: 0.25rem 0;
+}
+
+.browse-text {
   color: var(--text);
+  text-decoration: underline;
 }
 
 .file-name {
@@ -280,6 +383,26 @@ input[type="file"]:focus {
   display: inline-block;
 }
 
+.clear-file-btn {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: var(--error);
+  border: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0;
+}
+
+.clear-file-btn:hover {
+  background-color: rgba(239, 68, 68, 0.2);
+}
+
+/* Enhanced select styling */
 select {
   width: 100%;
   padding: 0.75rem 1rem;
@@ -291,9 +414,14 @@ select {
   background-repeat: no-repeat;
   background-position: right 1rem center;
   background-size: 1rem;
-  transition: border-color var(--transition), box-shadow var(--transition), background-color var(--transition);
+  transition: all var(--transition);
   font-size: 0.875rem;
   color: var(--text);
+  cursor: pointer;
+}
+
+select:hover {
+  border-color: var(--primary);
 }
 
 select:focus {
@@ -302,6 +430,7 @@ select:focus {
   box-shadow: var(--focus-ring);
 }
 
+/* Enhanced button styling */
 button {
   background-color: var(--primary);
   color: white;
@@ -312,7 +441,7 @@ button {
   border-radius: var(--radius);
   cursor: pointer;
   width: 100%;
-  transition: background-color var(--transition), transform var(--transition), box-shadow var(--transition);
+  transition: all var(--transition);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -323,7 +452,7 @@ button {
 button:hover {
   background-color: var(--primary-hover);
   box-shadow: var(--shadow);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
 }
 
 button:active {
@@ -343,6 +472,72 @@ button:disabled {
   box-shadow: none;
 }
 
+/* Upload spinner */
+.upload-spinner {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: #fff;
+  animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.upload-icon {
+  display: inline-block;
+  transition: transform var(--transition);
+}
+
+button:hover .upload-icon {
+  transform: translateY(-3px);
+}
+
+/* Advanced settings toggle */
+.advanced-settings-toggle {
+  margin: 1rem 0;
+}
+
+.toggle-settings-btn {
+  background-color: transparent;
+  color: var(--primary);
+  padding: 0.5rem;
+  box-shadow: none;
+  font-weight: 500;
+  width: auto;
+  margin-left: auto;
+  font-size: 0.8rem;
+}
+
+.toggle-settings-btn:hover {
+  background-color: var(--primary-bg);
+  transform: none;
+  box-shadow: none;
+}
+
+.toggle-arrow {
+  display: inline-block;
+  margin-left: 0.25rem;
+  transition: transform var(--transition);
+  font-size: 0.6rem;
+}
+
+.toggle-arrow.open {
+  transform: rotate(180deg);
+}
+
+/* Advanced settings section */
+.advanced-settings {
+  background-color: var(--primary-bg);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
 /* Status messages */
 .message {
   margin-top: 1.5rem;
@@ -356,6 +551,7 @@ button:disabled {
   align-items: center;
   gap: 0.75rem;
   transition: background-color var(--transition);
+  position: relative;
 }
 
 .message-success {
@@ -379,6 +575,24 @@ button:disabled {
   justify-content: center;
   min-width: 1.5rem;
   height: 1.5rem;
+}
+
+.close-message {
+  position: absolute;
+  right: 0.5rem;
+  top: 0.5rem;
+  background: transparent;
+  color: var(--text-light);
+  width: 1.5rem;
+  height: 1.5rem;
+  font-size: 0.75rem;
+  padding: 0;
+}
+
+.close-message:hover {
+  background: rgba(0, 0, 0, 0.05);
+  transform: none;
+  box-shadow: none;
 }
 
 /* Jobs table styling */
@@ -426,11 +640,17 @@ th:last-child {
 }
 
 tr {
-  transition: background-color var(--transition);
+  transition: all var(--transition);
 }
 
-tr:hover {
+.job-row {
+  cursor: pointer;
+}
+
+.job-row:hover {
   background-color: var(--primary-bg);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
 }
 
 tr:nth-child(even) {
@@ -462,6 +682,17 @@ tr:last-child td {
   border-bottom: none;
 }
 
+/* File cell styling */
+.file-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.file-icon-small {
+  font-size: 1rem;
+}
+
 /* Status badges */
 .status-badge {
   display: inline-flex;
@@ -471,7 +702,7 @@ tr:last-child td {
   border-radius: var(--radius-sm);
   font-size: 0.75rem;
   font-weight: 500;
-  transition: background-color var(--transition), color var(--transition);
+  transition: all var(--transition);
 }
 
 .status-completed {
@@ -494,19 +725,96 @@ tr:last-child td {
   color: var(--error);
 }
 
-/* Link styling */
-a {
-  color: var(--primary);
-  text-decoration: none;
-  font-weight: 500;
-  transition: color var(--transition);
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
+/* Spinning animation for the processing icon */
+.spinning-icon {
+  display: inline-block;
+  animation: spin 2s linear infinite;
 }
 
-a:hover {
-  color: var(--primary-hover);
+/* Timeline styling for job progress */
+.job-timeline {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.25rem 0;
+  margin-top: 0.25rem;
+}
+
+.timeline-bar {
+  position: absolute;
+  height: 2px;
+  background-color: var(--border);
+  width: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+}
+
+.timeline-progress {
+  position: absolute;
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary) 0%, #8b5cf6 100%);
+  left: 0;
+  top: 0;
+  transition: width 0.5s ease-in-out;
+}
+
+.timeline-point {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: var(--border);
+  z-index: 2;
+  position: relative;
+  transition: all var(--transition);
+}
+
+.timeline-point.completed {
+  background-color: var(--primary);
+  transform: scale(1.1);
+}
+
+.timeline-point.current {
+  background-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+  animation: pulse 2s infinite;
+}
+
+.timeline-label {
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.65rem;
+  white-space: nowrap;
+  color: var(--text-light);
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+
+.timeline-point:hover .timeline-label {
+  opacity: 1;
+}
+
+/* Pending badge */
+.pending-badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  color: var(--text-light);
+}
+
+/* Duration info */
+.duration-info {
+  font-size: 0.75rem;
+  color: var(--text-light);
+}
+
+/* Error text */
+.error-text {
+  font-size: 0.75rem;
+  color: var(--error);
 }
 
 /* Download button styling */
@@ -519,13 +827,27 @@ a:hover {
   border-radius: var(--radius-sm);
   font-weight: 500;
   font-size: 0.75rem;
-  transition: background-color var(--transition);
+  transition: all var(--transition);
   gap: 0.375rem;
 }
 
 .download-button:hover {
   background-color: var(--success-hover);
   text-decoration: none;
+  transform: translateY(-2px);
+}
+
+/* Retry button */
+.retry-button {
+  background-color: var(--warning);
+  color: white;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  width: auto;
+}
+
+.retry-button:hover {
+  background-color: var(--warning);
 }
 
 .text-light {
@@ -561,15 +883,30 @@ a:hover {
   opacity: 0.5;
 }
 
+.help-button {
+  margin-top: 1rem;
+  background-color: transparent;
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  padding: 0.5rem 1rem;
+  width: auto;
+}
+
+.help-button:hover {
+  background-color: var(--primary-bg);
+  color: var(--primary);
+}
+
 /* Progress bar for upload */
 .progress-container {
   width: 100%;
-  height: 0.5rem;
+  height: 0.75rem;
   background-color: var(--border);
   border-radius: var(--radius-sm);
   overflow: hidden;
   margin-top: 1rem;
   transition: background-color var(--transition);
+  position: relative;
 }
 
 .progress-bar {
@@ -577,6 +914,67 @@ a:hover {
   background: linear-gradient(90deg, var(--primary) 0%, #8b5cf6 100%);
   border-radius: var(--radius-sm);
   transition: width 0.3s ease-in-out;
+  position: relative;
+}
+
+.progress-text {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+
+/* Footer styling */
+.app-footer {
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--text-light);
+  font-size: 0.8rem;
+}
+
+.footer-links {
+  display: flex;
+  gap: 1rem;
+}
+
+.footer-links a {
+  color: var(--text-light);
+}
+
+.footer-links a:hover {
+  color: var(--primary);
+}
+
+/* Animation classes */
+.animated {
+  animation-duration: 0.5s;
+  animation-fill-mode: both;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fadeIn {
+  animation-name: fadeIn;
 }
 
 /* Responsive adjustments */
@@ -610,5 +1008,9 @@ a:hover {
     width: 2rem;
     height: 2rem;
     font-size: 1rem;
+  }
+  
+  .job-timeline .timeline-label {
+    display: none;
   }
 }
